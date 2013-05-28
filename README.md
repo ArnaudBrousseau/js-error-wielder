@@ -68,7 +68,7 @@ believe me your users will be pissed when they're stuck in a loop producing
 errors.
 
 ### Ideas and inspiration
-As you can see in the `refs` section, the ideas I lay down here aren't new.
+As you can see in the `ideas` directory, the ideas I lay down here aren't new.
 I got most of them by looking at how people have approached that problem before.
 
 Particularly:
