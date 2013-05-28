@@ -54,9 +54,9 @@ This should be your last resort option, for several reasons:
 - you can't obtain a stacktrace, because it's gone by the time the error
   bubbles up to the `onerror` handler.
 
-    window.onerror = function(message, fileName, lineNumber) {
-        // No clue what the original error was about. Good luck debugging!
-    }
+        window.onerror = function(message, fileName, lineNumber) {
+            // No clue what the original error was about. Good luck debugging!
+        }
 
 
 ##### Control your error reporting rate.
