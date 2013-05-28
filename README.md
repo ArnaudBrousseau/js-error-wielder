@@ -68,14 +68,4 @@ believe me your users will be pissed when they're stuck in a loop producing
 errors.
 
 ### Ideas and inspiration
-As you can see in the `ideas` directory, the ideas I lay down here aren't new.
-I got most of them by looking at how people have approached that problem before.
-
-Particularly:
-- The [Qbaka][] folks
-- [Errorception][]
-- [Pamela Fox][]
-
-[Qbaka]: http://qbaka.com/ "Qbaka"
-[Errorception]: http://errorception.com/ "Errorception"
-[Pamela Fox]: http://www.pamelafox.org/ "Pamela Fox"
+See `ideas` folder for details and further references.
