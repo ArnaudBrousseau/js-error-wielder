@@ -1,0 +1,9 @@
+{
+    "name": "js-error-wielder",
+    "version": "0.0.1",
+    "dependencies": {}
+    "devDependencies": {
+        "chai": "*",
+        "mocha": "*"
+    }
+}
