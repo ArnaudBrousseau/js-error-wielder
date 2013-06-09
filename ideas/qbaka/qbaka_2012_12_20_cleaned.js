@@ -552,7 +552,7 @@
    * Was previously called m.
    */
   function addInfoToErrorDict(errorDict){
-    if(!isIE && !S){
+    if(!isIE && !isMobile){
       extend(errorDict, { plugins:getMatchingPlugins() })
     };
 

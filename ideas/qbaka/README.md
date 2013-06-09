@@ -164,5 +164,46 @@ compatibility wrt `XMLHTTPRequest` vs `ActiveXObject`. Wise.
     frameContent.getElementById("reporting").submit(); // this is the actual POST
     removeFrame(frame);
 
+#### Getting users' plugins
+Implementing `window.onerror` is equivalent to saying: please give me all
+errors going through the `window` object. Since plugins frequently mess with a
+page's content to do their thing, it's extremely frequent do catch errors with
+which you can't do anything. Qbaka reports the list of a user's installed
+plugin by looking at the `navigator.plugins` property.
+
+Interesting fact: from Qbaka's code, it seems both IE and "mobile browsers"
+(UAs matching `/(android|ios|mobi|symbian|midp)/i`) don't have the
+window.navigator property.
+
+      function getMatchingPlugins(){
+        var supportedPlugins=[];
+        var matchingPlugins=[];
+
+        // Iterates over all navigator plugins.
+        for (var i=0; i<navigator.plugins.length; i++) {
+          // The "unique key" for a plugin will be its name followed by its
+          // description. Simple but works I guess.
+          var key = navigator.plugins[i].name + navigator.plugins[i].description;
+
+          if(supportedPlugins[key] === undefined){
+            supportedPlugins[key] = i;
+            var pluginInfo = {
+              name: navigator.plugins[i].name.toLowerCase(),
+              desc:navigator.plugins[i].description.toLowerCase()
+            };
+
+            if (/flash|macromedia|banner|ad|block|anti/i.test(pluginInfo.name) ||
+                /flash|macromedia|banner|ad|block|anti/i.test(pluginInfo.desc)) {
+              matchingPlugins.push(pluginInfo);
+            }
+          }
+        }
+        return matchingPlugins;
+      };
+
+Realistically you just need an array of plugin names to get the job done. The
+above code seems overkill for what it's doing IMHO, and I'd just check to see
+if `window.navigator` is undefined before proceeding, instead of relying on
+brittle UA checks.
 
 [Qbaka]: http://qbaka.com/ "Qbaka"
