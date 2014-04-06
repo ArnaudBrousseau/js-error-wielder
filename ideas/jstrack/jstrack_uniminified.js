@@ -1,65 +1,120 @@
 (function (v) {
   "use awesome";
-  try {
-    var k = function (f) {
-      function k(c) {
-        c = c || navigator.userAgent;
-        var d = c.match(/Trident\/([\d.]+)/);
-        return d && "7.0" === d[1] ? 11 : (c = c.match(/MSIE ([\d.]+)/)) ? parseInt(c[1], 10) : false
+  try { // <= Oh my. This does NOT have an associated catch block.
+        // Yay silent failures!
+        // Oh the irony for a JS-error-tracking company!
+
+    var util = function (f) {
+      /**
+       * Returns the current IE version as a number, or false.
+       */
+      function getIEVersion(userAgent) {
+        userAgent = userAgent || navigator.userAgent;
+        var tridentVersion = userAgent.match(/Trident\/([\d.]+)/);
+
+        if (tridentVersion && tridentVersion[1] === "7.0") {
+          // Trident 7.0 means IE11
+          return 11;
+        } else {
+          var IEVersion = userAgent.match(/MSIE ([\d.]+)/))
+          if (IEVersion) {
+            return parseInt(userAgent[1], 10);
+          } else {
+            return false;
+          }
+        }
       }
+
       return {
         slice: Array.prototype.slice,
+
+        /**
+         * UUID generator. I'd imagine that's how error reports get grouped.
+         */
         uuid: function () {
           return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
             var d = 16 * Math.random() | 0;
-            return ("x" == c ? d : d & 3 | 8).toString(16)
+
+            if (c === "x") {
+              return d.toString(16);
+            } else {
+              return (d & 3 | 8).toString(16);
+            }
           })
         },
-        reduce: function (c) {
+
+        /**
+         * Basic serializer
+         */
+        reduce: function (obj) {
           try {
-            return "object" === typeof c || "function" === typeof c ? c.toString() : c
-          } catch (d) {
-            return "unknown"
+            if (typeof obj === "object" || typeof obj === "function") {
+              return obj.toString();
+            } else {
+              return obj;
+            }
+          } catch (e) {
+            return "unknown";
           }
         },
-        defer: function (c, d) {
+
+        /**
+         * Delays a function execution until next tic
+         */
+        defer: function (fn, ctx) {
           setTimeout(function () {
-            c.apply(d)
+            fn.apply(ctx)
           })
         },
+
+        /**
+         * Gives a string representing the current UTC time in ISO format
+         */
         isoNow: function () {
-          function c(b) {
-            b = String(b);
-            1 === b.length && (b = "0" + b);
-            return b
+          function to2Digits(num) {
+            var numStr = String(num);
+            if (numStr.length === 1) {
+              numStr = "0" + numStr;
+            }
+            return numStr;
           }
-          var d = new Date;
-          return d.getUTCFullYear() +
-            "-" + c(d.getUTCMonth() + 1) +
-            "-" + c(d.getUTCDate()) +
-            "T" + c(d.getUTCHours()) +
-            ":" + c(d.getUTCMinutes()) +
-            ":" + c(d.getUTCSeconds()) +
-            "." + String((d.getUTCMilliseconds() / 1E3).toFixed(3)).slice(2, 5) + "Z";
+
+          var date = new Date;
+          return date.getUTCFullYear() +
+            "-" + to2Digits(date.getUTCMonth() + 1) +
+            "-" + to2Digits(date.getUTCDate()) +
+            "T" + to2Digits(date.getUTCHours()) +
+            ":" + to2Digits(date.getUTCMinutes()) +
+            ":" + to2Digits(date.getUTCSeconds()) +
+            "." + String((date.getUTCMilliseconds() / 1000).toFixed(3)).slice(2, 5) + "Z";
         },
-        isBrowserIE: k,
-        isBrowserSupported: function (c) {
-          c = c || navigator.userAgent;
-          c = k(c);
-          return !c || 8 < c
+
+        /**
+         * Hey hey! Apparently we don't bother with IE7. Rad.
+         */
+        isBrowserIE: getIEVersion,
+        isBrowserSupported: function (userAgent) {
+          userAgent = userAgent || navigator.userAgent;
+          var IEVersion = getIEVersion(userAgent);
+          return !IEVersion || IEVersion > 8;
         },
-        contains: function (c, d) {
-          var b;
-          for (b = 0; b < c.length; b++) {
-            if (c[b] === d) {
+
+        /**
+         * Util contains method for arrays
+         */
+        contains: function (arr, key) {
+          var i;
+          for (i = 0; i < arr.length; i++) {
+            if (arr[i] === key) {
               return true;
             }
           }
           return false;
         }
       }
-    }(this),
-      n = function (f) {
+    }(this);
+
+    var n = function (f) {
         var e = {
           endpoint: "https://my.trackjs.com/capture",
           cdnHost: "dl1d2m8ri9v3j.cloudfront.net",
@@ -85,8 +140,8 @@
             }
           },
           initialize: function () {
-            v._trackJs && e.mergeCustomerConfig(v._trackJs);
-            k.isBrowserIE() && (e.endpoint = "//" + e.endpoint.split("://")[1])
+            win._trackJs && e.mergeCustomerConfig(win._trackJs);
+            util.isBrowserIE() && (e.endpoint = "//" + e.endpoint.split("://")[1])
           }
         };
         return e
@@ -94,7 +149,7 @@
       m = function (f) {
         function e(g, a) {
           h[g] || (h[g] = []);
-          var b = k.uuid();
+          var b = util.uuid();
           h[g].push({
             key: b,
             value: a
@@ -151,9 +206,9 @@
             file: l,
             line: h,
             url: f.location.toString(),
-            message: k.reduce(a),
+            message: util.reduce(a),
             stack: p,
-            timestamp: k.isoNow()
+            timestamp: util.isoNow()
           };
           for (var e in t) {
             if (t.hasOwnProperty(e)) {
@@ -177,14 +232,14 @@
         }
 
         function a(g) {
-          var a = k.slice.call(arguments, 1),
+          var a = util.slice.call(arguments, 1),
             b;
           for (b in g) {
-            "function" === typeof g[b] && (k.contains(a, b) || function () {
+            "function" === typeof g[b] && (util.contains(a, b) || function () {
               var a = g[b];
               g[b] = function () {
                 try {
-                  var g = k.slice.call(arguments, 0);
+                  var g = util.slice.call(arguments, 0);
                   return a.apply(this, g)
                 } catch (b) {
                   throw q("catch", b), b;
@@ -266,7 +321,7 @@
               },
               attempt: function (a, b) {
                 try {
-                  var c = k.slice.call(arguments, 2);
+                  var c = util.slice.call(arguments, 2);
                   return a.apply(b || this, c)
                 } catch (l) {
                   throw q("catch", l), l;
@@ -275,7 +330,7 @@
               watch: function (a, b) {
                 return function () {
                   try {
-                    var c = k.slice.call(arguments, 0);
+                    var c = util.slice.call(arguments, 0);
                     return a.apply(b || this, c)
                   } catch (l) {
                     throw q("catch", l), l;
@@ -291,13 +346,13 @@
             for (b = 0; b < c.length; b++) {
               (function (a) {
                 f.trackJs[a] = function () {
-                  var b = k.slice.call(arguments);
+                  var b = util.slice.call(arguments);
                   e("c", {
-                    timestamp: k.isoNow(),
+                    timestamp: util.isoNow(),
                     severity: a,
-                    message: k.reduce(b)
+                    message: util.reduce(b)
                   });
-                  "error" === a && n.trackConsoleError && ("[object Error]" === Object.prototype.toString.call(b[0]) ? q("console", b[0]) : p("console", k.reduce(b)))
+                  "error" === a && n.trackConsoleError && ("[object Error]" === Object.prototype.toString.call(b[0]) ? q("console", b[0]) : p("console", util.reduce(b)))
                 }
               })(c[b]);
             }
@@ -326,7 +381,7 @@
         function c(a) {
           if (a.tjs) {
             var b = m.getLogEntry("n", a.tjs.logId);
-            b && (b.completedOn = k.isoNow(), b.statusCode =
+            b && (b.completedOn = util.isoNow(), b.statusCode =
               a.status, b.statusText = a.statusText, m.updateLogEntry("n", a.tjs.logId, b), a.tjs = void 0)
           }
         }
@@ -338,7 +393,7 @@
           return b.apply(this, a);
         }
         this.tjs.logId = m.addLogEntry("n", {
-          startedOn: k.isoNow(),
+          startedOn: util.isoNow(),
           method: this.tjs.method,
           url: this.tjs.url
         });
@@ -368,7 +423,7 @@
               "function" === typeof s && s.apply(this, arguments)
             };
           this.onreadystatechange = r;
-          k.defer(function () {
+          util.defer(function () {
             this.onreadystatechange !== r && (s = this.onreadystatechange,
               this.onreadystatechange = r)
           }, this)
@@ -377,18 +432,18 @@
       }
       m.registerModule("network", {
         onInitialize: function () {
-          k.isBrowserSupported() && n.inspectors && (d = f.XMLHttpRequest.prototype.open, b = f.XMLHttpRequest.prototype.send, f.XMLHttpRequest.prototype.open = function () {
-            var a = k.slice.call(arguments, 0);
+          util.isBrowserSupported() && n.inspectors && (d = f.XMLHttpRequest.prototype.open, b = f.XMLHttpRequest.prototype.send, f.XMLHttpRequest.prototype.open = function () {
+            var a = util.slice.call(arguments, 0);
             return p.call(this, a, d);
           }, f.XMLHttpRequest.prototype.send = function () {
-            var c = k.slice.call(arguments, 0);
+            var c = util.slice.call(arguments, 0);
             return a.call(this, c, b);
           }, f.XDomainRequest && (e = f.XDomainRequest.prototype.open, c = f.XDomainRequest.prototype.send,
             f.XDomainRequest.prototype.open = function () {
-              var a = k.slice.call(arguments, 0);
+              var a = util.slice.call(arguments, 0);
               return p.call(this, a, e);
             }, f.XDomainRequest.prototype.send = function () {
-              var b = k.slice.call(arguments, 0);
+              var b = util.slice.call(arguments, 0);
               return a.call(this, b, c);
             }))
         },
@@ -437,7 +492,7 @@
 
       function d(a, b, c, d) {
         m.addLogEntry("v", {
-          timestamp: k.isoNow(),
+          timestamp: util.isoNow(),
           action: b,
           element: e(a, c, d)
         })
@@ -479,7 +534,7 @@
         if (b.token) {
           var c = new Image;
           setTimeout(function () {
-            c.src = "//" + n.cdnHost + "/usage.gif?customer=" + b.token + "&correlationId=" + b.correlationId + "&x=" + k.uuid()
+            c.src = "//" + n.cdnHost + "/usage.gif?customer=" + b.token + "&correlationId=" + b.correlationId + "&x=" + util.uuid()
           }, 0)
         }
       }
@@ -488,7 +543,7 @@
         onInitialize: function () {
           d.token = e();
           var b = document.cookie.replace(/(?:(?:^|.*;\s*)TJS\s*\=\s*([^;]*).*$)|^.*$/, "$1");
-          b || (b = k.uuid(), document.cookie = "TJS=" + b + "; expires=Fri, 31 Dec 9999 23:59:59 GMT; path=/");
+          b || (b = util.uuid(), document.cookie = "TJS=" + b + "; expires=Fri, 31 Dec 9999 23:59:59 GMT; path=/");
           d.correlationId = b;
           c(d)
         },
@@ -510,14 +565,14 @@
           (function (a) {
             var c = b[a] || e;
             b[a] = function () {
-              var b = k.slice.call(arguments);
+              var b = util.slice.call(arguments);
               m.addLogEntry("c", {
-                timestamp: k.isoNow(),
+                timestamp: util.isoNow(),
                 severity: a,
-                message: k.reduce(b)
+                message: util.reduce(b)
               });
               "error" === a && d.trackConsoleError && ("[object Error]" === Object.prototype.toString.call(b[0]) ?
-                m.transmitErrorObject("console", b[0]) : m.transmit("console", k.reduce(b)));
+                m.transmitErrorObject("console", b[0]) : m.transmit("console", util.reduce(b)));
               d.consoleDisplay && "function" === typeof c && (c.apply ? c.apply(this, b) : c(b))
             }
           })(a[f]);
@@ -536,7 +591,7 @@
         }
       })
     })(this);
-    (function (f, e) {
+    (function (f, win) {
       function c(b) {
         var c, a = {};
         b.jQuery && (b.jQuery.fn && b.jQuery.fn.jquery) && (a.jQuery = b.jQuery.fn.jquery);
@@ -557,18 +612,18 @@
       m.registerModule("environment", {
         onTransmit: function () {
           return {
-            userAgent: e.navigator.userAgent,
+            userAgent: win.navigator.userAgent,
             age: (new Date).getTime() - d,
             viewportHeight: document.documentElement.clientHeight,
             viewportWidth: document.documentElement.clientWidth,
-            dependencies: c(e)
+            dependencies: c(win)
           }
         },
         forTest: {
           discoverDependencies: c
         }
       })
-    })(this, v);
+    })(this, win);
     m.initialize()
   } catch (u) {
     m.transmit("tracker", u.message, u.fileName, u.lineNumber, void 0, u.stack)
