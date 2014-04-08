@@ -1,10 +1,12 @@
-(function (v) {
-  "use awesome";
+(function (win) {
+  "use awesome"; // wat.
+
   try { // <= Oh my. This does NOT have an associated catch block.
         // Yay silent failures!
         // Oh the irony for a JS-error-tracking company!
 
     var util = function (f) {
+
       /**
        * Returns the current IE version as a number, or false.
        */
@@ -16,7 +18,7 @@
           // Trident 7.0 means IE11
           return 11;
         } else {
-          var IEVersion = userAgent.match(/MSIE ([\d.]+)/))
+          var IEVersion = userAgent.match(/MSIE ([\d.]+)/);
           if (IEVersion) {
             return parseInt(userAgent[1], 10);
           } else {
@@ -114,8 +116,11 @@
       }
     }(this);
 
-    var n = function (f) {
-        var e = {
+    /**
+     * Provides access to options/config
+     */
+    var jsTrackOptions = function (f) {
+        var options = {
           endpoint: "https://my.trackjs.com/capture",
           cdnHost: "dl1d2m8ri9v3j.cloudfront.net",
           version: "1.2.4.0",
@@ -125,37 +130,71 @@
           inspectors: true,
           consoleDisplay: true,
           globalAlias: true,
-          userId: void 0,
-          sessionId: void 0,
+          userId: undefined,
+          sessionId: undefined,
           ignore: [],
-          mergeCustomerConfig: function (c) {
-            if (c) {
-              var d = "userId sessionId trackGlobal trackAjaxFail trackAjaxFail trackConsoleError inspectors consoleDisplay globalAlias ignore".split(" ");
-              var b;
-              var f;
-              for (b = 0; b < d.length; b++) {
-                f = d[b];
-                void 0 !== c[f] && (e[f] = c[f]);
+
+          /**
+           * Provides a function to override default options
+           */
+          mergeCustomerConfig: function (customerConfig) {
+            if (customerConfig) {
+              var overridableOptions = [
+                "userId", "sessionId",
+                "trackGlobal", "trackAjaxFail", "trackAjaxFail", "trackConsoleError",
+                "inspectors", "consoleDisplay", "globalAlias", "ignore"];
+              var i, override;
+
+              for (i = 0; i < overridableOptions.length; i++) {
+                overridableOption = overridableOptions[i];
+
+                if (customerConfig[overridableOption] !== undefined) {
+                  options[overridableOption] = customerConfig[overridableOption];
+                }
               }
             }
           },
+
+          /**
+           * TODO: see if that's the main entry point?
+           */
           initialize: function () {
-            win._trackJs && e.mergeCustomerConfig(win._trackJs);
-            util.isBrowserIE() && (e.endpoint = "//" + e.endpoint.split("://")[1])
+            if (win._trackJs) {
+                options.mergeCustomerConfig(win._trackJs);
+            }
+            if (util.isBrowserIE()) {
+                // Changes to protocol-relative URLs...why just for IE though?!
+                options.endpoint = "//" + options.endpoint.split("://")[1];
+            }
           }
         };
-        return e
+        return options;
       }(this),
-      m = function (f) {
-        function e(g, a) {
-          h[g] || (h[g] = []);
-          var b = util.uuid();
-          h[g].push({
-            key: b,
+
+      /**
+       * TODO: find out what this is all about
+       */
+      jsTrack = function (f) {
+
+        /**
+         * TODO: figure out what this is for
+         * Best guess: init a channel?
+         */
+        function e(channel, a) {
+          logs[channel] || (logs[channel] = []);
+
+          var uuid = util.uuid();
+
+          logs[channel].push({
+            key: uuid,
             value: a
           });
-          10 < h[g].length && (h[g] = h[g].slice(Math.max(h[g].length - 10, 0)));
-          return b
+
+          if (logs[channel].length > 10) {
+            logs[channel] = logs[channel].slice(Math.max(logs[channel].length - 10, 0));
+          }
+
+          return uuid;
         }
 
         function c(g, b, a) {
@@ -171,11 +210,11 @@
               l.onreadystatechange = function (g) {
                 4 === l.readyState && 200 !== l.status && (m = true)
               };
-              l.tjs = void 0;
+              l.tjs = undefined;
               l.send(JSON.stringify(a))
             }
-          } catch (d) {
-            m = true
+          } catch (e) {
+            m = true;
           }
         }
 
@@ -193,41 +232,46 @@
           return false;
         }
 
+        /**
+         * wat.
+         * Function that returns 0? Great.
+         */
         function b() {
           var g = s;
           s = 0;
           return g;
         }
 
-        function p(g, a, l, h, q, p) {
+        function p(g, a, l, line, q, p) {
           g = {
             column: q,
             entry: g,
             file: l,
-            line: h,
+            line: line,
             url: f.location.toString(),
             message: util.reduce(a),
             stack: p,
             timestamp: util.isoNow()
           };
-          for (var e in t) {
-            if (t.hasOwnProperty(e)) {
-              a = t[e];
+
+          for (var e in trackingModules) {
+            if (trackingModules.hasOwnProperty(e)) {
+              a = trackingModules[e];
               return "function" === typeof a.onTransmit && (g[e] = a.onTransmit());
             }
           }
           if (!d()) {
             g.throttled = b();
             a: {
-              for (e = 0; e < n.ignore.length; e++) {
-                if (n.ignore[e] && n.ignore[e].test && n.ignore[e].test(g.message)) {
+              for (e = 0; e < jsTrackOptions.ignore.length; e++) {
+                if (jsTrackOptions.ignore[e] && jsTrackOptions.ignore[e].test && jsTrackOptions.ignore[e].test(g.message)) {
                   e = true;
-                  break a
+                  break a;
                 }
                }
-              e = false
+              e = false;
             }
-            e || c("POST", n.endpoint, g)
+            e || c("POST", jsTrackOptions.endpoint, g)
           }
         }
 
@@ -261,46 +305,47 @@
         }
 
         function q(a, b) {
-          p(a, b.message, b.fileName, b.lineNumber, void 0, b.stack)
+          p(a, b.message, b.fileName, b.lineNumber, undefined, b.stack)
         }
-        var t = {}, h = {}, m = false,
+        var trackingModules = {}, logs = {}, m = false,
           w = 0,
           s = 0,
           r = (new Date).getTime();
+
         return {
           registerModule: function (a, b) {
-            return a ? (t[a] = {
+            return a ? (trackingModules[a] = {
               onInitialize: b.onInitialize,
               onTransmit: b.onTransmit,
               forTest: b.forTest
             }, true) : false
           },
           getModule: function (a) {
-            return t.hasOwnProperty(a) ? t[a] : false
+            return trackingModules.hasOwnProperty(a) ? trackingModules[a] : false
           },
           addLogEntry: e,
           getLogEntry: function (a, b) {
-            h[a] || (h[a] = []);
-            for (var c = 0; c < h[a].length; c++) {
-              if (h[a][c].key === b) {
-                return h[a][c].value;
+            logs[a] || (logs[a] = []);
+            for (var c = 0; c < logs[a].length; c++) {
+              if (logs[a][c].key === b) {
+                return logs[a][c].value;
               };
             }
             return false;
           },
           flushLog: function (a) {
-            h[a] || (h[a] = []);
-            for (var b = [], c = 0; c < h[a].length; c++) {
-              b.push(h[a][c].value);
+            logs[a] || (logs[a] = []);
+            for (var b = [], c = 0; c < logs[a].length; c++) {
+              b.push(logs[a][c].value);
             }
-            h[a].length = 0;
+            logs[a].length = 0;
             return b;
           },
           updateLogEntry: function (a, b, c) {
-            h[a] || (h[a] = []);
-            for (var l = 0; l < h[a].length; l++) {
-              if (h[a][l].key === b) {
-                h[a][l].value = c;
+            logs[a] || (logs[a] = []);
+            for (var l = 0; l < logs[a].length; l++) {
+              if (b === logs[a][l].key) {
+                logs[a][l].value = c;
                 return true;
               }
             }
@@ -309,9 +354,9 @@
           transmit: p,
           transmitErrorObject: q,
           initialize: function () {
-            n.initialize();
-            l(t);
-            n.trackGlobal && n.inspectors && (f.onerror = function (a, b, c, l) {
+            jsTrackOptions.initialize();
+            l(trackingModules);
+            jsTrackOptions.trackGlobal && jsTrackOptions.inspectors && (f.onerror = function (a, b, c, l) {
               p("global", a, b, c, l)
             });
             f.trackJs = {
@@ -339,8 +384,8 @@
               },
               watchAll: a,
               trackAll: a,
-              configure: n.mergeCustomerConfig,
-              version: n.version
+              configure: jsTrackOptions.mergeCustomerConfig,
+              version: jsTrackOptions.version
             };
             var b, c = ["log", "debug", "info", "warn", "error"];
             for (b = 0; b < c.length; b++) {
@@ -352,11 +397,11 @@
                     severity: a,
                     message: util.reduce(b)
                   });
-                  "error" === a && n.trackConsoleError && ("[object Error]" === Object.prototype.toString.call(b[0]) ? q("console", b[0]) : p("console", util.reduce(b)))
+                  "error" === a && jsTrackOptions.trackConsoleError && ("[object Error]" === Object.prototype.toString.call(b[0]) ? q("console", b[0]) : p("console", util.reduce(b)))
                 }
               })(c[b]);
             }
-            n.globalAlias && (f.track = f.trackJs.track)
+            jsTrackOptions.globalAlias && (f.track = f.trackJs.track)
           },
           forTest: {
             initializeModules: l,
@@ -366,115 +411,210 @@
           }
         }
       }(this);
-    (function (f) {
-      var e, c, d, b;
 
-      function p(a, b) {
+    /**
+     * Network module
+     */
+    (function (globalWindow) {
+      var maybeLog;
+
+      /**
+       * Utility to patch XDomain XMLHttpRequest "open" methods, which
+       * signature is:
+       * void open(
+       *   DOMString method,
+       *   DOMString url,
+       *   optional boolean async,
+       *   optional DOMString user,
+       *   optional DOMString password
+       * )
+       * (source MDN)
+       */
+      function recordOpen(args, fn) {
         this.tjs = {
-          method: a[0],
-          url: a[1]
+          method: args[0],
+          url: args[1]
         };
-        return b.apply(this, a)
+        return fn.apply(this, args);
       }
 
-      function a(a, b) {
-        function c(a) {
-          if (a.tjs) {
-            var b = m.getLogEntry("n", a.tjs.logId);
-            b && (b.completedOn = util.isoNow(), b.statusCode =
-              a.status, b.statusText = a.statusText, m.updateLogEntry("n", a.tjs.logId, b), a.tjs = void 0)
+      /**
+       * Protects network-related functions
+       */
+      function protectNetworkFn(argsArray, fn) {
+
+        /**
+         * Maybe adds an entry to our network log
+         */
+        function maybeLog(obj) {
+          if (obj.tjs) {
+            var entry = jsTrack.getLogEntry("n", obj.tjs.logId);
+            if (entry) {
+              entry.completedOn = util.isoNow();
+              entry.statusCode = obj.status;
+              entry.statusText = obj.statusText;
+              jsTrack.updateLogEntry("n", obj.tjs.logId, entry);
+              obj.tjs = undefined;
+            }
           }
         }
 
-        function d(a) {
-          n.trackAjaxFail && 400 <= a.status && m.transmit("ajax", a.status + " " + a.statusText)
-        }
+        /**
+         * Logs bad AJAX response
+         */
+        function maybeLogResponse(resp) {
+          if (jsTrackOptions.trackAjaxFail && resp.status >= 400) {
+            jsTrack.transmit("ajax", resp.status + " " + resp.statusText);
+          }
+        };
+
         if (!this.tjs) {
-          return b.apply(this, a);
+          return fn.apply(this, argsArray);
         }
-        this.tjs.logId = m.addLogEntry("n", {
+
+        /**
+         * Initializes the log? Not sure.
+         */
+        this.tjs.logId = jsTrack.addLogEntry("n", {
           startedOn: util.isoNow(),
           method: this.tjs.method,
           url: this.tjs.url
         });
-        f.ProgressEvent && this.addEventListener && this.addEventListener("readystatechange", function (a) {
-          4 === this.readyState && c(this)
-        }, true);
-        if (this.addEventListener) {
-          this.addEventListener("load", function (a) {
-            c(this);
-            d(this)
+
+        if (globalWindow.ProgressEvent && this.addEventListener) {
+          this.addEventListener("readystatechange", function (evt) {
+            if (this.readyState === 4) {
+              maybeLog(this);
+            }
           }, true);
-        } else if ("[object XDomainRequest]" === this.toString()) {
-          var e = this.onload;
-          this.onload = function (a) {
-            c(this);
-            "function" === typeof e && e.apply(this, arguments)
+        }
+
+        if (this.addEventListener) {
+          /**
+           * This case handles most of the browsers.
+           * Whenever an element loads -- img, iframe, window(?) -- the
+           * callback is patched to report failures.
+           */
+          this.addEventListener("load", function (evt) {
+            maybeLog(this);
+            maybeLogResponse(this);
+          }, true);
+        } else if (this.toString() === "[object XDomainRequest]") {
+          /**
+           * If we fall in this case we're in IE
+           * XDomainRequest is IE's way to CORS (IE8 and up)
+           * Instead of patching addEventListener we're patching onerror+onload
+           */
+          var originalOnload = this.onload;
+          this.onload = function (evt) {
+            maybeLog(this);
+            if (typeof originalOnload === "function") {
+              originalOnload.apply(this, arguments);
+            };
           };
-          var p = this.onerror;
-          this.onerror = function (a) {
-            c(this);
-            "function" === typeof p && p.apply(this, arguments)
+
+          var originalOnerror = this.onerror;
+          this.onerror = function (evt) {
+            maybeLog(this);
+            if (typeof originalOnerror === "function") {
+              originalOnerror.apply(this, arguments);
+            }
           }
         } else {
-          var s = this.onreadystatechange,
-            r = function (a) {
-              4 === this.readyState && (c(this), d(this));
-              "function" === typeof s && s.apply(this, arguments)
-            };
-          this.onreadystatechange = r;
+          /**
+           * If we don't have anything else to patch, patch onreadystatechange.
+           * Note: didn't know onreadystatechange passed an argument when
+           * called back. Something to investigate further but I'm not sure how
+           * useful that is to be honest...
+           */
+          var originalOnreadystatechange = this.onreadystatechange;
+          var protectedOnreadystatechange = function (evt) {
+            if (this.readyState === 4) {
+              maybeLog(this);
+              maybeLogResponse(this);
+            }
+            if (typeof originalOnreadystatechange === "function") {
+              originalOnreadystatechange.apply(this, arguments);
+            }
+          };
+          this.onreadystatechange = protectedOnreadystatechange;
+
           util.defer(function () {
-            this.onreadystatechange !== r && (s = this.onreadystatechange,
-              this.onreadystatechange = r)
-          }, this)
+            if (this.onreadystatechange !== protectedOnreadystatechange) {
+              originalOnreadystatechange = this.onreadystatechange;
+              this.onreadystatechange = protectedOnreadystatechange;
+            }
+          }, this);
         }
-        return b.apply(this, a);
+        return fn.apply(this, argsArray);
       }
-      m.registerModule("network", {
+
+      jsTrack.registerModule("network", {
         onInitialize: function () {
-          util.isBrowserSupported() && n.inspectors && (d = f.XMLHttpRequest.prototype.open, b = f.XMLHttpRequest.prototype.send, f.XMLHttpRequest.prototype.open = function () {
-            var a = util.slice.call(arguments, 0);
-            return p.call(this, a, d);
-          }, f.XMLHttpRequest.prototype.send = function () {
-            var c = util.slice.call(arguments, 0);
-            return a.call(this, c, b);
-          }, f.XDomainRequest && (e = f.XDomainRequest.prototype.open, c = f.XDomainRequest.prototype.send,
-            f.XDomainRequest.prototype.open = function () {
-              var a = util.slice.call(arguments, 0);
-              return p.call(this, a, e);
-            }, f.XDomainRequest.prototype.send = function () {
-              var b = util.slice.call(arguments, 0);
-              return a.call(this, b, c);
-            }))
+          if (util.isBrowserSupported() && jsTrackOptions.inspectors) {
+
+            /**
+             * Patches XMLHttpRequest
+             */
+            var originalXMLHttpRequestOpen = globalWindow.XMLHttpRequest.prototype.open;
+            var originalXMLHttpRequestSend = globalWindow.XMLHttpRequest.prototype.send;
+            globalWindow.XMLHttpRequest.prototype.open = function () {
+              var args = util.slice.call(arguments, 0);
+              return recordOpen.call(this, args, originalXMLHttpRequestOpen);
+            };
+            globalWindow.XMLHttpRequest.prototype.send = function () {
+              var args = util.slice.call(arguments, 0);
+              return protectNetworkFn.call(this, args, originalXMLHttpRequestSend);
+            };
+
+            /**
+             * Patches XDomainRequest
+             */
+            if (globalWindow.XDomainRequest) {
+              var originalXDomainRequestOpen = globalWindow.XDomainRequest.prototype.open;
+              var originalXDomainRequestSend = globalWindow.XDomainRequest.prototype.send;
+
+              globalWindow.XDomainRequest.prototype.open = function () {
+                var args = util.slice.call(arguments, 0);
+                return recordOpen.call(this, args, originalXDomainRequestOpen);
+              };
+
+              globalWindow.XDomainRequest.prototype.send = function () {
+                var args = util.slice.call(arguments, 0);
+                return protectNetworkFn.call(this, args, originalXDomainRequestSend);
+              }
+            }
+          }
         },
         onTransmit: function () {
-          return m.flushLog("n");
+          return jsTrack.flushLog("n");
         }
       })
     })(this);
+
     (function (f) {
-      function e(a, b, c) {
-        for (var d = {}, h = a.attributes, e = 0; e < h.length; e++) {
-          if ("value" !== h[e].name.toLowerCase()) {
-            d[h[e].name] = h[e].value;
+      function serializeElement(a, b, c) {
+        for (var d = {}, attrs = a.attributes, i = 0; i < attrs.length; i++) {
+          if ("value" !== attrs[i].name.toLowerCase()) {
+            d[attrs[i].name] = attrs[i].value;
           }
         }
-        h = a.getBoundingClientRect();
+        boundingRect = a.getBoundingClientRect();
         return {
           tag: a.tagName.toLowerCase(),
           attributes: d,
           position: {
-            left: h.left,
-            top: h.top,
-            width: h.width,
-            height: h.height
+            left: boundingRect.left,
+            top: boundingRect.top,
+            width: boundingRect.width,
+            height: boundingRect.height
           },
           value: b ? {
             length: b.length,
-            pattern: "" === b || void 0 === b ? "empty" : /^[a-z0-9!#$%&'*+=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(b) ? "email" : /^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/.test(b) || /^(\d{4}[\/\-](0?[1-9]|1[012])[\/\-]0?[1-9]|[12][0-9]|3[01])$/.test(b) ? "date" : /^(?:(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?$/.test(b) ?
+            pattern: "" === b || undefined === b ? "empty" : /^[a-z0-9!#$%&'*+=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(b) ? "email" : /^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/.test(b) || /^(\d{4}[\/\-](0?[1-9]|1[012])[\/\-]0?[1-9]|[12][0-9]|3[01])$/.test(b) ? "date" : /^(?:(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?$/.test(b) ?
               "usphone" : /^\s*$/.test(b) ? "whitespace" : /^\d*$/.test(b) ? "numeric" : /^[a-zA-Z]*$/.test(b) ? "alpha" : /^[a-zA-Z0-9]*$/.test(b) ? "alphanumeric" : "characters",
             checked: c
-          } : void 0
+          } : undefined
         }
       }
 
@@ -491,141 +631,208 @@
       }
 
       function d(a, b, c, d) {
-        m.addLogEntry("v", {
+        jsTrack.addLogEntry("v", {
           timestamp: util.isoNow(),
           action: b,
-          element: e(a, c, d)
+          element: serializeElement(a, c, d)
         })
       }
 
-      function b(a) {
+      function onDocumentClicked(a) {
         (a = a.target || document.elementFromPoint(a.clientX,
           a.clientY)) && a.tagName && (c(a, "input", ["checkbox"]) && d(a, "input", a.value, a.checked), c(a, "input", ["radio"]) && d(a, "input", a.value, a.checked), (c(a, "a") || c(a, "button") || c(a, "input", ["button", "submit"])) && d(a, "click"))
       }
 
-      function p(a) {
+      function onInputChanged(a) {
         if ((a = a.target || document.elementFromPoint(a.clientX, a.clientY)) && a.tagName && (c(a, "textarea") && d(a, "input", a.value), c(a, "select") && d(a, "input", a.options[a.selectedIndex].value), c(a, "input") && !c(a, "input", ["button", "submit", "hidden", "checkbox", "radio"]))) {
           var b = (a.getAttribute("type") ||
             "").toLowerCase();
-          d(a, "input", "password" === b ? void 0 : a.value)
+          d(a, "input", "password" === b ? undefined : a.value)
         }
-      }
-      m.registerModule("visitor", {
-        onInitialize: function () {
-          n.inspectors && (document.addEventListener ? (document.addEventListener("click", b, true), document.addEventListener("blur", p, true)) : document.attachEvent && (document.attachEvent("onclick", b), document.attachEvent("onfocusout", p)))
-        },
-        onTransmit: function () {
-          return m.flushLog("v")
-        },
-        forTest: {
-          onDocumentClicked: b,
-          onInputChanged: p
-        }
-      })
-    })(this);
-    (function (f) {
-      function e() {
-        if (f._trackJs && f._trackJs.customer) return f._trackJs.customer;
-        var b = document.getElementsByTagName("script");
-        return b[b.length - 1].getAttribute("data-customer")
       }
 
-      function c(b) {
-        if (b.token) {
-          var c = new Image;
+      jsTrack.registerModule("visitor", {
+        onInitialize: function () {
+          if (jsTrackOptions.inspectors) {
+            if (document.addEventListener) {
+              document.addEventListener("click", onDocumentClicked, true);
+              document.addEventListener("blur", onInputChanged, true);
+            } else if (document.attachEvent) {
+              document.attachEvent("onclick", onDocumentClicked);
+              document.attachEvent("onfocusout", onInputChanged);
+            }
+          }
+        },
+        onTransmit: function () {
+          return jsTrack.flushLog("v");
+        },
+        forTest: {
+          onDocumentClicked: onDocumentClicked,
+          onInputChanged: onInputChanged
+        }
+      })
+    })(this);
+
+    (function (f) {
+      var beacon = {};
+
+      function getCustomerToken() {
+        if (f._trackJs && f._trackJs.customer) {
+          return f._trackJs.customer;
+        }
+        var scripts = document.getElementsByTagName("script");
+        return scripts[scripts.length - 1].getAttribute("data-customer");
+      };
+
+      function send(beacon) {
+        if (beacon.token) {
+          var img = new Image;
           setTimeout(function () {
-            c.src = "//" + n.cdnHost + "/usage.gif?customer=" + b.token + "&correlationId=" + b.correlationId + "&x=" + util.uuid()
+            img.src = "//" + jsTrackOptions.cdnHost +
+              "/usage.gif?customer=" + beacon.token +
+              "&correlationId=" + beacon.correlationId +
+              "&x=" + util.uuid();
           }, 0)
         }
-      }
-      var d = {};
-      m.registerModule("customer", {
+      };
+
+      jsTrack.registerModule("customer", {
         onInitialize: function () {
-          d.token = e();
-          var b = document.cookie.replace(/(?:(?:^|.*;\s*)TJS\s*\=\s*([^;]*).*$)|^.*$/, "$1");
-          b || (b = util.uuid(), document.cookie = "TJS=" + b + "; expires=Fri, 31 Dec 9999 23:59:59 GMT; path=/");
-          d.correlationId = b;
-          c(d)
+          beacon.token = getCustomerToken();
+
+          // W. T. F.
+          var UUID = document.cookie.replace(/(?:(?:^|.*;\s*)TJS\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+
+          if (!UUID) {
+            UUID = util.uuid();
+            // Woah. What a cookie.
+            document.cookie = "TJS=" + UUID + "; expires=Fri, 31 Dec 9999 23:59:59 GMT; path=/";
+          }
+          beacon.correlationId = UUID;
+          send(beacon);
         },
         onTransmit: function () {
-          d.userId = n.userId;
-          d.sessionId = n.sessionId;
-          return d
+          beacon.userId = jsTrackOptions.userId;
+          beacon.sessionId = jsTrackOptions.sessionId;
+          return beacon;
         },
         forTest: {
-          getCustomerToken: e
+          getCustomerToken: getCustomerToken
         }
       })
     })(this);
+
     (function (f) {
-      function e(c, d) {
-        var b = c || {}, e = b.log || function () {}, a = ["log", "debug", "info", "warn", "error"],
-          f;
-        for (f = 0; f < a.length; f++) {
-          (function (a) {
-            var c = b[a] || e;
-            b[a] = function () {
+
+      function listenToConsole(c, options) {
+        var console = c || {};
+        var e = console.log || function () {};
+        var levels = ["log", "debug", "info", "warn", "error"];
+        var i;
+
+        for (i = 0; i < levels.length; i++) {
+          (function (severity) {
+            var c = console[severity] || e;
+            console[severity] = function () {
               var b = util.slice.call(arguments);
-              m.addLogEntry("c", {
+              jsTrack.addLogEntry("c", {
                 timestamp: util.isoNow(),
-                severity: a,
+                severity: severity,
                 message: util.reduce(b)
               });
-              "error" === a && d.trackConsoleError && ("[object Error]" === Object.prototype.toString.call(b[0]) ?
-                m.transmitErrorObject("console", b[0]) : m.transmit("console", util.reduce(b)));
-              d.consoleDisplay && "function" === typeof c && (c.apply ? c.apply(this, b) : c(b))
+
+              if (severity === "error" && options.trackConsoleError) {
+                if (Object.prototype.toString.call(console[0]) === "[object Error]") {
+                  jsTrack.transmitErrorObject("console", console[0]);
+                } else {
+                  jsTrack.transmit("console", util.reduce(console)));
+                }
+              }
+
+              if (options.consoleDisplay && typeof c === "function") {
+                if (c.apply) {
+                  c.apply(this, console);
+                } else {
+                  c(console);
+                }
+              }
             }
-          })(a[f]);
+          })(levels[i]);
         }
-        return b;
+        return console;
       }
-      m.registerModule("console", {
+
+      jsTrack.registerModule("console", {
         onInitialize: function () {
-          n.inspectors && (f.console = e(f.console, n))
+          if (jsTrackOptions.inspectors) {
+            f.console = listenToConsole(f.console, jsTrackOptions);
+          }
         },
         onTransmit: function () {
-          return m.flushLog("c")
+          return jsTrack.flushLog("c");
         },
         forTest: {
-          listenToConsole: e
+          listenToConsole: listenToConsole
         }
       })
     })(this);
+
     (function (f, win) {
-      function c(b) {
-        var c, a = {};
-        b.jQuery && (b.jQuery.fn && b.jQuery.fn.jquery) && (a.jQuery = b.jQuery.fn.jquery);
-        b.jQuery && (b.jQuery.ui && b.jQuery.ui.version) &&
-          (a.jQueryUI = b.jQuery.ui.version);
-        b.angular && (b.angular.version && b.angular.version.full) && (a.angular = b.angular.version.full);
-        for (c in b) {
-          if ("webkitStorageInfo" !== c) try {
-            if (b[c]) {
-              var d = b[c].version || b[c].Version || b[c].VERSION;
-              "string" === typeof d && (a[c] = d)
-            }
-          } catch (e) {}
+      function getDependencies(win) {
+        var prop, deps = {};
+
+        if (win.jQuery && (win.jQuery.fn && win.jQuery.fn.jquery)) {
+          deps.jQuery = win.jQuery.fn.jquery;
         }
-        return a;
+
+        if (win.jQuery && (win.jQuery.ui && win.jQuery.ui.version)) {
+          deps.jQueryUI = win.jQuery.ui.version;
+        }
+
+        if (win.angular && (win.angular.version && win.angular.version.full)) {
+          deps.angular = win.angular.version.full;
+        }
+
+        /**
+         * Blind iteration over other window property to catch other libraries
+         * (that's assuming they have a "version"/i property set correctly)
+         * This is probably not very useful, and hecka slow :/
+         */
+        for (prop in win) {
+          if (prop !== "webkitStorageInfo") {
+            try {
+              if (win[prop]) {
+                var version = win[prop].version || win[prop].Version || win[prop].VERSION;
+                if (typeof version === "string") {
+                  deps[prop] = version;
+                }
+              }
+            } catch (e) {}
+          }
+        }
+        return deps;
       }
-      var d = (new Date).getTime();
-      m.registerModule("environment", {
+
+      var now = (new Date).getTime();
+      jsTrack.registerModule("environment", {
         onTransmit: function () {
           return {
             userAgent: win.navigator.userAgent,
-            age: (new Date).getTime() - d,
+            age: (new Date).getTime() - now,
             viewportHeight: document.documentElement.clientHeight,
             viewportWidth: document.documentElement.clientWidth,
-            dependencies: c(win)
+            dependencies: getDependencies(win)
           }
         },
         forTest: {
-          discoverDependencies: c
+          discoverDependencies: getDependencies
         }
       })
     })(this, win);
-    m.initialize()
-  } catch (u) {
-    m.transmit("tracker", u.message, u.fileName, u.lineNumber, void 0, u.stack)
+
+    jsTrack.initialize();
+
+  } catch (e) {
+    jsTrack.transmit("tracker", e.message, e.fileName, e.lineNumber, undefined, e.stack);
   }
 })(window);
