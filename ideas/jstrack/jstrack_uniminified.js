@@ -174,7 +174,7 @@
       /**
        * TODO: find out what this is all about
        */
-      jsTrack = function (f) {
+      jsTrack = function (globalWindow) {
 
         /**
          * TODO: figure out what this is for
@@ -199,118 +199,160 @@
 
         function c(g, b, a) {
           function c(g, b) {
-            var a = new f.XMLHttpRequest;
-            "withCredentials" in a ? (a.open(g, b), a.setRequestHeader("Content-Type", "text/plain")) : "undefined" !== typeof f.XDomainRequest ?
-              (a = new f.XDomainRequest, a.open(g, b)) : a = null;
-            return a
+            var a = new globalWindow.XMLHttpRequest;
+            if ("withCredentials" in a) {
+              a.open(g, b);
+              a.setRequestHeader("Content-Type", "text/plain");
+            } else {
+              if (typeof globalWindow.XDomainRequest !== undefined) {
+              a = new globalWindow.XDomainRequest, a.open(g, b);
+              } else {
+                a = null;
+              }
+            }
+            return a;
           }
+
           try {
             if (!m) {
               var l = c(g, b);
               l.onreadystatechange = function (g) {
-                4 === l.readyState && 200 !== l.status && (m = true)
+                if (l.readyState === 4 && l.status !== 200) {
+                  m = true;
+                }
               };
               l.tjs = undefined;
-              l.send(JSON.stringify(a))
+              l.send(JSON.stringify(a));
             }
           } catch (e) {
             m = true;
           }
         }
 
-        function d() {
-          var g = (new Date).getTime();
+        /**
+         * Throttle function
+         * If there's more than 10 errors per sec, rate is limited and this
+         * function starts returning true.
+         */
+        function throttle() {
+          var now = (new Date).getTime();
           w++;
-          if (r + 1E3 >= g) {
-            if (r = g, 10 < w) {
-              s++
+
+          if (reference + 1000 >= now) {
+            reference = now;
+            if (w > 10) {
+              s++;
               return true;
           } else {
-            w = 0,
-            r = g;
+            w = 0;
+            reference = now;
           }
           return false;
-        }
+        };
 
         /**
-         * wat.
-         * Function that returns 0? Great.
+         * `s` is a module-level var which increases every time an error is sent
          */
-        function b() {
+        function getThrottledCount() {
           var g = s;
           s = 0;
           return g;
-        }
+        };
 
-        function p(g, a, l, line, q, p) {
-          g = {
-            column: q,
-            entry: g,
-            file: l,
+        function transmit(entry, msg, file, line, col, stack) {
+          report = {
+            column: col,
+            entry: entry,
+            file: file,
             line: line,
-            url: f.location.toString(),
-            message: util.reduce(a),
-            stack: p,
+            url: globalWindow.location.toString(),
+            message: util.reduce(msg),
+            stack: stack,
             timestamp: util.isoNow()
           };
 
-          for (var e in trackingModules) {
-            if (trackingModules.hasOwnProperty(e)) {
-              a = trackingModules[e];
-              return "function" === typeof a.onTransmit && (g[e] = a.onTransmit());
+          for (var moduleName in trackingModules) {
+            if (trackingModules.hasOwnProperty(moduleName)) {
+              module = trackingModules[moduleName];
+              if (typeof module.onTransmit === "function") {
+                report[moduleName] = module.onTransmit();
+                return report[moduleName];
+              } else {
+                return false;
+              }
             }
           }
-          if (!d()) {
-            g.throttled = b();
+
+          if (!throttle()) {
+            var i, shouldBeIgnored;
+            report.throttled = getThrottledCount();
+
+            // First time in my life I've seen this construct. wat.
             a: {
-              for (e = 0; e < jsTrackOptions.ignore.length; e++) {
-                if (jsTrackOptions.ignore[e] && jsTrackOptions.ignore[e].test && jsTrackOptions.ignore[e].test(g.message)) {
-                  e = true;
+              // Filters our errors to ignore
+              for (i = 0; i < jsTrackOptions.ignore.length; i++) {
+                if (jsTrackOptions.ignore[i] && jsTrackOptions.ignore[i].test && jsTrackOptions.ignore[i].test(report.message)) {
+                  // If we have a match at any point, ditch this error
+                  shouldBeIgnored = true;
                   break a;
                 }
                }
-              e = false;
+              shouldBeIgnored = false;
             }
-            e || c("POST", jsTrackOptions.endpoint, g)
+
+            if (!shouldBeIgnored) {
+              c("POST", jsTrackOptions.endpoint, report);
+            }
           }
-        }
+        };
 
         function a(g) {
-          var a = util.slice.call(arguments, 1),
-            b;
+          var a = util.slice.call(arguments, 1);
+          var b;
           for (b in g) {
-            "function" === typeof g[b] && (util.contains(a, b) || function () {
-              var a = g[b];
-              g[b] = function () {
-                try {
-                  var g = util.slice.call(arguments, 0);
-                  return a.apply(this, g)
-                } catch (b) {
-                  throw q("catch", b), b;
-                }
-              }
-            }())
-          }
-        }
-
-        function l(g) {
-          for (var a in g) {
-            if (g.hasOwnProperty(a)) {
-              var b = g[a];
-              if ("function" === typeof b.onInitialize) {
-                b.onInitialize();
+            if (typeof g[b] === "function") {
+              if (!util.contains(a, b)) {
+                function () {
+                  var a = g[b];
+                  g[b] = function () {
+                    try {
+                      var g = util.slice.call(arguments, 0);
+                      return a.apply(this, g);
+                    } catch (e) {
+                        transmitErrorObject("catch", e);
+                        throw e;
+                    }
+                  };
+                }());
               }
             }
           }
         }
 
-        function q(a, b) {
-          p(a, b.message, b.fileName, b.lineNumber, undefined, b.stack)
-        }
-        var trackingModules = {}, logs = {}, m = false,
-          w = 0,
-          s = 0,
-          r = (new Date).getTime();
+        /**
+         * Initializes all modules
+         */
+        function l(modules) {
+          for (var moduleName in modules) {
+            if (modules.hasOwnProperty(moduleName)) {
+              var module = modules[moduleName];
+              if (typeof module.onInitialize === "function") {
+                module.onInitialize();
+              }
+            }
+          }
+        };
+
+        function transmitErrorObject(entry, e) {
+          transmit(entry, e.message, e.fileName, e.lineNumber, undefined, e.stack)
+        };
+
+        var trackingModules = {};
+        var logs = {};
+        var m = false;
+        var w = 0;
+        var s = 0;
+        var reference = (new Date).getTime();
 
         return {
           registerModule: function (a, b) {
@@ -351,25 +393,30 @@
             }
             return false
           },
-          transmit: p,
-          transmitErrorObject: q,
+          transmit: transmit,
+          transmitErrorObject: transmitErrorObject,
           initialize: function () {
             jsTrackOptions.initialize();
             l(trackingModules);
-            jsTrackOptions.trackGlobal && jsTrackOptions.inspectors && (f.onerror = function (a, b, c, l) {
-              p("global", a, b, c, l)
-            });
-            f.trackJs = {
+            if (jsTrackOptions.trackGlobal && jsTrackOptions.inspectors) {
+              globalWindow.onerror = function (a, b, c, l) {
+                transmit("global", a, b, c, l);
+              });
+            }
+            globalWindow.trackJs = {
               track: function (a) {
-                "[object Error]" === Object.prototype.toString.call(a) ? q("direct", a) :
-                  p("direct", a)
+                if (Object.prototype.toString.call(a) === "[object Error]") {
+                  transmitErrorObject("direct", a);
+                } else {
+                  transmit("direct", a);
+                }
               },
               attempt: function (a, b) {
                 try {
                   var c = util.slice.call(arguments, 2);
                   return a.apply(b || this, c)
                 } catch (l) {
-                  throw q("catch", l), l;
+                  throw transmitErrorObject("catch", l), l;
                 }
               },
               watch: function (a, b) {
@@ -378,7 +425,7 @@
                     var c = util.slice.call(arguments, 0);
                     return a.apply(b || this, c)
                   } catch (l) {
-                    throw q("catch", l), l;
+                    throw transmitErrorObject("catch", l), l;
                   }
                 }
               },
@@ -387,26 +434,32 @@
               configure: jsTrackOptions.mergeCustomerConfig,
               version: jsTrackOptions.version
             };
-            var b, c = ["log", "debug", "info", "warn", "error"];
-            for (b = 0; b < c.length; b++) {
+            var i, c = ["log", "debug", "info", "warn", "error"];
+            for (i = 0; i < c.length; i++) {
               (function (a) {
-                f.trackJs[a] = function () {
-                  var b = util.slice.call(arguments);
+                globalWindow.trackJs[a] = function () {
+                  var args = util.slice.call(arguments);
                   e("c", {
                     timestamp: util.isoNow(),
                     severity: a,
-                    message: util.reduce(b)
+                    message: util.reduce(args)
                   });
-                  "error" === a && jsTrackOptions.trackConsoleError && ("[object Error]" === Object.prototype.toString.call(b[0]) ? q("console", b[0]) : p("console", util.reduce(b)))
+                  if (a === "error" && jsTrackOptions.trackConsoleError) {
+                    if ("[object Error]" === Object.prototype.toString.call(args[0])) {
+                      transmitErrorObject("console", args[0]);
+                    } else {
+                      transmit("console", util.reduce(args));
+                    }
+                  }
                 }
-              })(c[b]);
+              })(c[i]);
             }
-            jsTrackOptions.globalAlias && (f.track = f.trackJs.track)
+            jsTrackOptions.globalAlias && (globalWindow.track = globalWindow.trackJs.track)
           },
           forTest: {
             initializeModules: l,
-            throttle: d,
-            getThrottledCount: b,
+            throttle: throttle,
+            getThrottledCount: getThrottledCount,
             wrap: a
           }
         }
@@ -593,63 +646,140 @@
     })(this);
 
     (function (f) {
-      function serializeElement(a, b, c) {
-        for (var d = {}, attrs = a.attributes, i = 0; i < attrs.length; i++) {
-          if ("value" !== attrs[i].name.toLowerCase()) {
-            d[attrs[i].name] = attrs[i].value;
+
+      function getPatternForValue(val) {
+        var EMAIL_REGEX = /^[a-z0-9!#$%&'*+=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+        var DATE_REGEX = /^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/;
+        var OTHER_DATE_REGEX = /^(\d{4}[\/\-](0?[1-9]|1[012])[\/\-]0?[1-9]|[12][0-9]|3[01])$/;
+        var US_PHONE_REGEX = /^(?:(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?$/;
+
+        if (val === "" || val === undefined) {
+          return "empty";
+        }
+        if (EMAIL_REGEX.test(val)) {
+          return "email";
+        }
+        if (DATE_REGEX.test(val) || OTHER_DATE_REGEX(val)) {
+          return "date";
+        }
+        if (US_PHONE_REGEX.test(val)) {
+          return "usphone";
+        }
+        if (/^\s*$/.test(val)) {
+          return "whitespace";
+        }
+        if (/^\d*$/.test(val)) {
+          return "numeric";
+        }
+        if (/^[a-zA-Z]*$/.test(val)) {
+          return "alpha";
+        }
+        if (/^[a-zA-Z0-9]*$/.test(val)) {
+          return "alphanumeric";
+        }
+        return "characters";
+      };
+
+      function serializeElement(elem, val, checked) {
+        var attributes = {};
+        var elemAttributes = elem.attributes;
+        var i;
+
+        for (i = 0; i < elemAttributes.length; i++) {
+          if (elemAttributes[i].name.toLowerCase() !== "value") {
+            attributes[elemAttributes[i].name] = elemAttributes[i].value;
           }
         }
-        boundingRect = a.getBoundingClientRect();
+        boundingRect = elem.getBoundingClientRect();
+
+        var value = undefined;
+        if (val) {
+          value = {
+            length: val.length,
+            pattern: getPatternForValue(val),
+            checked: checked
+          };
+        }
+
         return {
-          tag: a.tagName.toLowerCase(),
-          attributes: d,
+          tag: elem.tagName.toLowerCase(),
+          attributes: attributes,
           position: {
             left: boundingRect.left,
             top: boundingRect.top,
             width: boundingRect.width,
             height: boundingRect.height
           },
-          value: b ? {
-            length: b.length,
-            pattern: "" === b || undefined === b ? "empty" : /^[a-z0-9!#$%&'*+=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(b) ? "email" : /^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/.test(b) || /^(\d{4}[\/\-](0?[1-9]|1[012])[\/\-]0?[1-9]|[12][0-9]|3[01])$/.test(b) ? "date" : /^(?:(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?$/.test(b) ?
-              "usphone" : /^\s*$/.test(b) ? "whitespace" : /^\d*$/.test(b) ? "numeric" : /^[a-zA-Z]*$/.test(b) ? "alpha" : /^[a-zA-Z0-9]*$/.test(b) ? "alphanumeric" : "characters",
-            checked: c
-          } : undefined
-        }
-      }
+          value: value
+        };
+      };
 
-      function c(a, b, c) {
-        if (a.tagName.toLowerCase() !== b.toLowerCase()) return false;
-        if (!c) return true;
-        a = (a.getAttribute("type") || "").toLowerCase();
-        for (b = 0; b < c.length; b++) {
-          if (c[b] === a) {
+      /**
+       * Checks that a given element:
+       * - has a given tagName
+       * - (optionally) has its type among given types
+       */
+      function elemHasTagAndTypes(elem, tagName, types) {
+        // Checks for tagName
+        if (elem.tagName.toLowerCase() !== tagName.toLowerCase()) {
+          return false;
+        }
+
+        // Now check for type attributes, if we have any
+        if (!types) {
+          return true;
+        }
+
+        var elemType = (elem.getAttribute("type") || "").toLowerCase();
+        for (i = 0; i < types.length; i++) {
+          if (types[i] === elemType) {
             return true;
           }
         }
-        return false;
-      }
 
-      function d(a, b, c, d) {
+        return false;
+      };
+
+      function logInteraction(elem, evtType, value, checked) {
         jsTrack.addLogEntry("v", {
           timestamp: util.isoNow(),
-          action: b,
-          element: serializeElement(a, c, d)
-        })
-      }
+          action: evtType,
+          element: serializeElement(elem, value, checked)
+        });
+      };
 
-      function onDocumentClicked(a) {
-        (a = a.target || document.elementFromPoint(a.clientX,
-          a.clientY)) && a.tagName && (c(a, "input", ["checkbox"]) && d(a, "input", a.value, a.checked), c(a, "input", ["radio"]) && d(a, "input", a.value, a.checked), (c(a, "a") || c(a, "button") || c(a, "input", ["button", "submit"])) && d(a, "click"))
-      }
-
-      function onInputChanged(a) {
-        if ((a = a.target || document.elementFromPoint(a.clientX, a.clientY)) && a.tagName && (c(a, "textarea") && d(a, "input", a.value), c(a, "select") && d(a, "input", a.options[a.selectedIndex].value), c(a, "input") && !c(a, "input", ["button", "submit", "hidden", "checkbox", "radio"]))) {
-          var b = (a.getAttribute("type") ||
-            "").toLowerCase();
-          d(a, "input", "password" === b ? undefined : a.value)
+      function onDocumentClicked(evt) {
+        var elem = evt.target || document.elementFromPoint(evt.clientX, evt.clientY);
+        if (elem && elem.tagName) {
+          if (elemHasTagAndTypes(elem, "input", ["checkbox"])) {
+            logInteraction(elem, "input", elem.value, elem.checked);
+          }
+          if (elemHasTagAndTypes(elem, "input", ["radio"]))
+            logInteraction(elem, "input", elem.value, elem.checked);
+          }
+          if (elemHasTagAndTypes(elem, "a") || elemHasTagAndTypes(elem, "button") || elemHasTagAndTypes(elem, "input", ["button", "submit"])) {
+            logInteraction(elem, "click");
+          }
         }
-      }
+      };
+
+      function onInputChanged(evt) {
+        var elem = evt.target || document.elementFromPoint(evt.clientX, evt.clientY);
+        if (elem && elem.tagName) {
+          if (elemHasTagAndTypes(elem, "textarea")) {
+            logInteraction(elem, "input", elem.value);
+          }
+          if (elemHasTagAndTypes(elem, "select")) {
+            logInteraction(elem, "input", elem.options[elem.selectedIndex].value);
+          }
+          if (elemHasTagAndTypes(elem, "input") && !elemHasTagAndTypes(elem, "input", ["button", "submit", "hidden", "checkbox", "radio"])) {
+            var elemType = (elem.getAttribute("type") || "").toLowerCase();
+
+            // Nice touch, no PII logging, at least for passwords. Yay!
+            logInteraction(elem, "input", elemType === "password" ? undefined : elem.value);
+          }
+        }
+      };
 
       jsTrack.registerModule("visitor", {
         onInitialize: function () {
