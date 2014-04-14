@@ -1,10 +1,11 @@
 (function (win) {
   "use awesome"; // wat.
 
-  try { // <= Oh my. This does NOT have an associated catch block.
-        // Yay silent failures!
-        // Oh the irony for a JS-error-tracking company!
+  try {
 
+    /**
+     * Namespace to access some basic util functions
+     */
     var util = function (f) {
 
       /**
@@ -120,350 +121,351 @@
      * Provides access to options/config
      */
     var jsTrackOptions = function (f) {
-        var options = {
-          endpoint: "https://my.trackjs.com/capture",
-          cdnHost: "dl1d2m8ri9v3j.cloudfront.net",
-          version: "1.2.4.0",
-          trackGlobal: true,
-          trackAjaxFail: true,
-          trackConsoleError: true,
-          inspectors: true,
-          consoleDisplay: true,
-          globalAlias: true,
-          userId: undefined,
-          sessionId: undefined,
-          ignore: [],
+      var options = {
+        endpoint: "https://my.trackjs.com/capture",
+        cdnHost: "dl1d2m8ri9v3j.cloudfront.net",
+        version: "1.2.4.0",
+        trackGlobal: true,
+        trackAjaxFail: true,
+        trackConsoleError: true,
+        inspectors: true,
+        consoleDisplay: true,
+        globalAlias: true,
+        userId: undefined,
+        sessionId: undefined,
+        ignore: [],
 
-          /**
-           * Provides a function to override default options
-           */
-          mergeCustomerConfig: function (customerConfig) {
-            if (customerConfig) {
-              var overridableOptions = [
-                "userId", "sessionId",
-                "trackGlobal", "trackAjaxFail", "trackAjaxFail", "trackConsoleError",
-                "inspectors", "consoleDisplay", "globalAlias", "ignore"];
-              var i, override;
+        /**
+         * Provides a function to override default options
+         */
+        mergeCustomerConfig: function (customerConfig) {
+          if (customerConfig) {
+            var overridableOptions = [
+              "userId", "sessionId",
+              "trackGlobal", "trackAjaxFail", "trackAjaxFail", "trackConsoleError",
+              "inspectors", "consoleDisplay", "globalAlias", "ignore"];
+            var i, override;
 
-              for (i = 0; i < overridableOptions.length; i++) {
-                overridableOption = overridableOptions[i];
+            for (i = 0; i < overridableOptions.length; i++) {
+              overridableOption = overridableOptions[i];
 
-                if (customerConfig[overridableOption] !== undefined) {
-                  options[overridableOption] = customerConfig[overridableOption];
-                }
+              if (customerConfig[overridableOption] !== undefined) {
+                options[overridableOption] = customerConfig[overridableOption];
               }
             }
-          },
-
-          /**
-           * TODO: see if that's the main entry point?
-           */
-          initialize: function () {
-            if (win._trackJs) {
-                options.mergeCustomerConfig(win._trackJs);
-            }
-            if (util.isBrowserIE()) {
-                // Changes to protocol-relative URLs...why just for IE though?!
-                options.endpoint = "//" + options.endpoint.split("://")[1];
-            }
           }
-        };
-        return options;
-      }(this),
+        },
+
+        /**
+         * TODO: see if that's the main entry point?
+         */
+        initialize: function () {
+          if (win._trackJs) {
+              options.mergeCustomerConfig(win._trackJs);
+          }
+          if (util.isBrowserIE()) {
+              // Changes to protocol-relative URLs...why just for IE though?!
+              options.endpoint = "//" + options.endpoint.split("://")[1];
+          }
+        }
+      };
+      return options;
+    }(this);
+
+    /**
+     * TODO: find out what this is all about
+     */
+    jsTrack = function (globalWindow) {
 
       /**
-       * TODO: find out what this is all about
+       * TODO: figure out what this is for
+       * Best guess: init a channel?
        */
-      jsTrack = function (globalWindow) {
+      function e(channel, a) {
+        logs[channel] || (logs[channel] = []);
 
-        /**
-         * TODO: figure out what this is for
-         * Best guess: init a channel?
-         */
-        function e(channel, a) {
-          logs[channel] || (logs[channel] = []);
+        var uuid = util.uuid();
 
-          var uuid = util.uuid();
+        logs[channel].push({
+          key: uuid,
+          value: a
+        });
 
-          logs[channel].push({
-            key: uuid,
-            value: a
-          });
-
-          if (logs[channel].length > 10) {
-            logs[channel] = logs[channel].slice(Math.max(logs[channel].length - 10, 0));
-          }
-
-          return uuid;
+        if (logs[channel].length > 10) {
+          logs[channel] = logs[channel].slice(Math.max(logs[channel].length - 10, 0));
         }
 
-        function c(g, b, a) {
-          function c(g, b) {
-            var a = new globalWindow.XMLHttpRequest;
-            if ("withCredentials" in a) {
-              a.open(g, b);
-              a.setRequestHeader("Content-Type", "text/plain");
-            } else {
-              if (typeof globalWindow.XDomainRequest !== undefined) {
-              a = new globalWindow.XDomainRequest, a.open(g, b);
-              } else {
-                a = null;
-              }
-            }
-            return a;
-          }
+        return uuid;
+      }
 
-          try {
-            if (!m) {
-              var l = c(g, b);
-              l.onreadystatechange = function (g) {
-                if (l.readyState === 4 && l.status !== 200) {
-                  m = true;
-                }
-              };
-              l.tjs = undefined;
-              l.send(JSON.stringify(a));
-            }
-          } catch (e) {
-            m = true;
-          }
-        }
-
-        /**
-         * Throttle function
-         * If there's more than 10 errors per sec, rate is limited and this
-         * function starts returning true.
-         */
-        function throttle() {
-          var now = (new Date).getTime();
-          w++;
-
-          if (reference + 1000 >= now) {
-            reference = now;
-            if (w > 10) {
-              s++;
-              return true;
+      function c(g, b, a) {
+        function c(g, b) {
+          var a = new globalWindow.XMLHttpRequest;
+          if ("withCredentials" in a) {
+            a.open(g, b);
+            a.setRequestHeader("Content-Type", "text/plain");
           } else {
-            w = 0;
-            reference = now;
+            if (typeof globalWindow.XDomainRequest !== undefined) {
+            a = new globalWindow.XDomainRequest, a.open(g, b);
+            } else {
+              a = null;
+            }
+          }
+          return a;
+        };
+
+        try {
+          if (!m) {
+            var l = c(g, b);
+            l.onreadystatechange = function (g) {
+              if (l.readyState === 4 && l.status !== 200) {
+                m = true;
+              }
+            };
+            l.tjs = undefined;
+            l.send(JSON.stringify(a));
+          }
+        } catch (e) {
+          m = true;
+        }
+      };
+
+      /**
+       * Throttle function
+       * If there's more than 10 errors per sec, rate is limited and this
+       * function starts returning true.
+       */
+      function throttle() {
+        var now = (new Date).getTime();
+        w++;
+
+        if (reference + 1000 >= now) {
+          reference = now;
+          if (w > 10) {
+            s++;
+            return true;
+          }
+        } else {
+          w = 0;
+          reference = now;
+        }
+        return false;
+      };
+
+      /**
+       * `s` is a module-level var which increases every time an error is sent
+       */
+      function getThrottledCount() {
+        var g = s;
+        s = 0;
+        return g;
+      };
+
+      function transmit(entry, msg, file, line, col, stack) {
+        report = {
+          column: col,
+          entry: entry,
+          file: file,
+          line: line,
+          url: globalWindow.location.toString(),
+          message: util.reduce(msg),
+          stack: stack,
+          timestamp: util.isoNow()
+        };
+
+        for (var moduleName in trackingModules) {
+          if (trackingModules.hasOwnProperty(moduleName)) {
+            module = trackingModules[moduleName];
+            if (typeof module.onTransmit === "function") {
+              report[moduleName] = module.onTransmit();
+              return report[moduleName];
+            } else {
+              return false;
+            }
+          }
+        }
+
+        if (!throttle()) {
+          var i, shouldBeIgnored;
+          report.throttled = getThrottledCount();
+
+          // First time in my life I've seen this construct. wat.
+          a: {
+            // Filters our errors to ignore
+            for (i = 0; i < jsTrackOptions.ignore.length; i++) {
+              if (jsTrackOptions.ignore[i] && jsTrackOptions.ignore[i].test && jsTrackOptions.ignore[i].test(report.message)) {
+                // If we have a match at any point, ditch this error
+                shouldBeIgnored = true;
+                break a;
+              }
+             }
+            shouldBeIgnored = false;
+          }
+
+          if (!shouldBeIgnored) {
+            c("POST", jsTrackOptions.endpoint, report);
+          }
+        }
+      };
+
+      function a(g) {
+        var a = util.slice.call(arguments, 1);
+        var b;
+        for (b in g) {
+          if (typeof g[b] === "function") {
+            if (!util.contains(a, b)) {
+              (function () {
+                var a = g[b];
+                g[b] = function () {
+                  try {
+                    var g = util.slice.call(arguments, 0);
+                    return a.apply(this, g);
+                  } catch (e) {
+                      transmitErrorObject("catch", e);
+                      throw e;
+                  }
+                };
+              }());
+            }
+          }
+        }
+      }
+
+      /**
+       * Initializes all modules
+       */
+      function l(modules) {
+        for (var moduleName in modules) {
+          if (modules.hasOwnProperty(moduleName)) {
+            var module = modules[moduleName];
+            if (typeof module.onInitialize === "function") {
+              module.onInitialize();
+            }
+          }
+        }
+      };
+
+      function transmitErrorObject(entry, e) {
+        transmit(entry, e.message, e.fileName, e.lineNumber, undefined, e.stack)
+      };
+
+      var trackingModules = {};
+      var logs = {};
+      var m = false;
+      var w = 0;
+      var s = 0;
+      var reference = (new Date).getTime();
+
+      return {
+        registerModule: function (a, b) {
+          return a ? (trackingModules[a] = {
+            onInitialize: b.onInitialize,
+            onTransmit: b.onTransmit,
+            forTest: b.forTest
+          }, true) : false
+        },
+        getModule: function (a) {
+          return trackingModules.hasOwnProperty(a) ? trackingModules[a] : false
+        },
+        addLogEntry: e,
+        getLogEntry: function (a, b) {
+          logs[a] || (logs[a] = []);
+          for (var c = 0; c < logs[a].length; c++) {
+            if (logs[a][c].key === b) {
+              return logs[a][c].value;
+            };
           }
           return false;
-        };
-
-        /**
-         * `s` is a module-level var which increases every time an error is sent
-         */
-        function getThrottledCount() {
-          var g = s;
-          s = 0;
-          return g;
-        };
-
-        function transmit(entry, msg, file, line, col, stack) {
-          report = {
-            column: col,
-            entry: entry,
-            file: file,
-            line: line,
-            url: globalWindow.location.toString(),
-            message: util.reduce(msg),
-            stack: stack,
-            timestamp: util.isoNow()
-          };
-
-          for (var moduleName in trackingModules) {
-            if (trackingModules.hasOwnProperty(moduleName)) {
-              module = trackingModules[moduleName];
-              if (typeof module.onTransmit === "function") {
-                report[moduleName] = module.onTransmit();
-                return report[moduleName];
+        },
+        flushLog: function (a) {
+          logs[a] || (logs[a] = []);
+          for (var b = [], c = 0; c < logs[a].length; c++) {
+            b.push(logs[a][c].value);
+          }
+          logs[a].length = 0;
+          return b;
+        },
+        updateLogEntry: function (a, b, c) {
+          logs[a] || (logs[a] = []);
+          for (var l = 0; l < logs[a].length; l++) {
+            if (b === logs[a][l].key) {
+              logs[a][l].value = c;
+              return true;
+            }
+          }
+          return false
+        },
+        transmit: transmit,
+        transmitErrorObject: transmitErrorObject,
+        initialize: function () {
+          jsTrackOptions.initialize();
+          l(trackingModules);
+          if (jsTrackOptions.trackGlobal && jsTrackOptions.inspectors) {
+            globalWindow.onerror = function (a, b, c, l) {
+              transmit("global", a, b, c, l);
+            };
+          }
+          globalWindow.trackJs = {
+            track: function (a) {
+              if (Object.prototype.toString.call(a) === "[object Error]") {
+                transmitErrorObject("direct", a);
               } else {
-                return false;
+                transmit("direct", a);
               }
-            }
-          }
-
-          if (!throttle()) {
-            var i, shouldBeIgnored;
-            report.throttled = getThrottledCount();
-
-            // First time in my life I've seen this construct. wat.
-            a: {
-              // Filters our errors to ignore
-              for (i = 0; i < jsTrackOptions.ignore.length; i++) {
-                if (jsTrackOptions.ignore[i] && jsTrackOptions.ignore[i].test && jsTrackOptions.ignore[i].test(report.message)) {
-                  // If we have a match at any point, ditch this error
-                  shouldBeIgnored = true;
-                  break a;
-                }
-               }
-              shouldBeIgnored = false;
-            }
-
-            if (!shouldBeIgnored) {
-              c("POST", jsTrackOptions.endpoint, report);
-            }
-          }
-        };
-
-        function a(g) {
-          var a = util.slice.call(arguments, 1);
-          var b;
-          for (b in g) {
-            if (typeof g[b] === "function") {
-              if (!util.contains(a, b)) {
-                function () {
-                  var a = g[b];
-                  g[b] = function () {
-                    try {
-                      var g = util.slice.call(arguments, 0);
-                      return a.apply(this, g);
-                    } catch (e) {
-                        transmitErrorObject("catch", e);
-                        throw e;
-                    }
-                  };
-                }());
+            },
+            attempt: function (a, b) {
+              try {
+                var c = util.slice.call(arguments, 2);
+                return a.apply(b || this, c)
+              } catch (l) {
+                throw transmitErrorObject("catch", l), l;
               }
-            }
-          }
-        }
-
-        /**
-         * Initializes all modules
-         */
-        function l(modules) {
-          for (var moduleName in modules) {
-            if (modules.hasOwnProperty(moduleName)) {
-              var module = modules[moduleName];
-              if (typeof module.onInitialize === "function") {
-                module.onInitialize();
-              }
-            }
-          }
-        };
-
-        function transmitErrorObject(entry, e) {
-          transmit(entry, e.message, e.fileName, e.lineNumber, undefined, e.stack)
-        };
-
-        var trackingModules = {};
-        var logs = {};
-        var m = false;
-        var w = 0;
-        var s = 0;
-        var reference = (new Date).getTime();
-
-        return {
-          registerModule: function (a, b) {
-            return a ? (trackingModules[a] = {
-              onInitialize: b.onInitialize,
-              onTransmit: b.onTransmit,
-              forTest: b.forTest
-            }, true) : false
-          },
-          getModule: function (a) {
-            return trackingModules.hasOwnProperty(a) ? trackingModules[a] : false
-          },
-          addLogEntry: e,
-          getLogEntry: function (a, b) {
-            logs[a] || (logs[a] = []);
-            for (var c = 0; c < logs[a].length; c++) {
-              if (logs[a][c].key === b) {
-                return logs[a][c].value;
-              };
-            }
-            return false;
-          },
-          flushLog: function (a) {
-            logs[a] || (logs[a] = []);
-            for (var b = [], c = 0; c < logs[a].length; c++) {
-              b.push(logs[a][c].value);
-            }
-            logs[a].length = 0;
-            return b;
-          },
-          updateLogEntry: function (a, b, c) {
-            logs[a] || (logs[a] = []);
-            for (var l = 0; l < logs[a].length; l++) {
-              if (b === logs[a][l].key) {
-                logs[a][l].value = c;
-                return true;
-              }
-            }
-            return false
-          },
-          transmit: transmit,
-          transmitErrorObject: transmitErrorObject,
-          initialize: function () {
-            jsTrackOptions.initialize();
-            l(trackingModules);
-            if (jsTrackOptions.trackGlobal && jsTrackOptions.inspectors) {
-              globalWindow.onerror = function (a, b, c, l) {
-                transmit("global", a, b, c, l);
-              });
-            }
-            globalWindow.trackJs = {
-              track: function (a) {
-                if (Object.prototype.toString.call(a) === "[object Error]") {
-                  transmitErrorObject("direct", a);
-                } else {
-                  transmit("direct", a);
-                }
-              },
-              attempt: function (a, b) {
+            },
+            watch: function (a, b) {
+              return function () {
                 try {
-                  var c = util.slice.call(arguments, 2);
+                  var c = util.slice.call(arguments, 0);
                   return a.apply(b || this, c)
                 } catch (l) {
                   throw transmitErrorObject("catch", l), l;
                 }
-              },
-              watch: function (a, b) {
-                return function () {
-                  try {
-                    var c = util.slice.call(arguments, 0);
-                    return a.apply(b || this, c)
-                  } catch (l) {
-                    throw transmitErrorObject("catch", l), l;
+              }
+            },
+            watchAll: a,
+            trackAll: a,
+            configure: jsTrackOptions.mergeCustomerConfig,
+            version: jsTrackOptions.version
+          };
+          var i, c = ["log", "debug", "info", "warn", "error"];
+          for (i = 0; i < c.length; i++) {
+            (function (a) {
+              globalWindow.trackJs[a] = function () {
+                var args = util.slice.call(arguments);
+                e("c", {
+                  timestamp: util.isoNow(),
+                  severity: a,
+                  message: util.reduce(args)
+                });
+                if (a === "error" && jsTrackOptions.trackConsoleError) {
+                  if ("[object Error]" === Object.prototype.toString.call(args[0])) {
+                    transmitErrorObject("console", args[0]);
+                  } else {
+                    transmit("console", util.reduce(args));
                   }
                 }
-              },
-              watchAll: a,
-              trackAll: a,
-              configure: jsTrackOptions.mergeCustomerConfig,
-              version: jsTrackOptions.version
-            };
-            var i, c = ["log", "debug", "info", "warn", "error"];
-            for (i = 0; i < c.length; i++) {
-              (function (a) {
-                globalWindow.trackJs[a] = function () {
-                  var args = util.slice.call(arguments);
-                  e("c", {
-                    timestamp: util.isoNow(),
-                    severity: a,
-                    message: util.reduce(args)
-                  });
-                  if (a === "error" && jsTrackOptions.trackConsoleError) {
-                    if ("[object Error]" === Object.prototype.toString.call(args[0])) {
-                      transmitErrorObject("console", args[0]);
-                    } else {
-                      transmit("console", util.reduce(args));
-                    }
-                  }
-                }
-              })(c[i]);
-            }
-            jsTrackOptions.globalAlias && (globalWindow.track = globalWindow.trackJs.track)
-          },
-          forTest: {
-            initializeModules: l,
-            throttle: throttle,
-            getThrottledCount: getThrottledCount,
-            wrap: a
+              }
+            })(c[i]);
           }
+          jsTrackOptions.globalAlias && (globalWindow.track = globalWindow.trackJs.track)
+        },
+        forTest: {
+          initializeModules: l,
+          throttle: throttle,
+          getThrottledCount: getThrottledCount,
+          wrap: a
         }
-      }(this);
+      }
+    }(this);
 
     /**
      * Network module
@@ -642,7 +644,7 @@
         onTransmit: function () {
           return jsTrack.flushLog("n");
         }
-      })
+      });
     })(this);
 
     (function (f) {
@@ -754,7 +756,7 @@
           if (elemHasTagAndTypes(elem, "input", ["checkbox"])) {
             logInteraction(elem, "input", elem.value, elem.checked);
           }
-          if (elemHasTagAndTypes(elem, "input", ["radio"]))
+          if (elemHasTagAndTypes(elem, "input", ["radio"])) {
             logInteraction(elem, "input", elem.value, elem.checked);
           }
           if (elemHasTagAndTypes(elem, "a") || elemHasTagAndTypes(elem, "button") || elemHasTagAndTypes(elem, "input", ["button", "submit"])) {
@@ -800,7 +802,7 @@
           onDocumentClicked: onDocumentClicked,
           onInputChanged: onInputChanged
         }
-      })
+      });
     })(this);
 
     (function (f) {
@@ -875,7 +877,7 @@
                 if (Object.prototype.toString.call(console[0]) === "[object Error]") {
                   jsTrack.transmitErrorObject("console", console[0]);
                 } else {
-                  jsTrack.transmit("console", util.reduce(console)));
+                  jsTrack.transmit("console", util.reduce(console));
                 }
               }
 
@@ -904,7 +906,7 @@
         forTest: {
           listenToConsole: listenToConsole
         }
-      })
+      });
     })(this);
 
     (function (f, win) {
@@ -963,6 +965,7 @@
     jsTrack.initialize();
 
   } catch (e) {
+    // If JSTrack fails to initialize
     jsTrack.transmit("tracker", e.message, e.fileName, e.lineNumber, undefined, e.stack);
   }
 })(window);
